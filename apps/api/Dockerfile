@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
 
+############################
+# Base image
+############################
 FROM node:22-slim AS base
 
 ENV PNPM_HOME="/pnpm"
@@ -8,78 +11,96 @@ ENV CI=true
 
 RUN corepack enable
 
-# ----------------------------
+
+############################
 # Build Go shared library
-# ----------------------------
+############################
 FROM golang:1.24 AS go-build
-WORKDIR /app
+WORKDIR /build
 
-# Correct path for your repo
-COPY apps/api/sharedLibs/go-html-to-md ./sharedLibs/go-html-to-md
+COPY apps/api/sharedLibs/go-html-to-md ./go-html-to-md
 
-RUN cd sharedLibs/go-html-to-md && \
-    go mod download && \
-    go build -o libhtml-to-markdown.so -buildmode=c-shared html-to-markdown.go
+WORKDIR /build/go-html-to-md
+
+RUN go mod download
+RUN go build -o libhtml-to-markdown.so -buildmode=c-shared html-to-markdown.go
 
 
-# ----------------------------
+############################
 # Build Node application
-# ----------------------------
+############################
 FROM base AS build
-WORKDIR /app
+
+WORKDIR /repo
 
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
     pkg-config \
     python3 \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 
-# Rust (required for native modules)
+# Install Rust (required for native modules)
 ENV RUSTUP_HOME=/usr/local/rustup
 ENV CARGO_HOME=/usr/local/cargo
 ENV PATH=/usr/local/cargo/bin:$PATH
 
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path \
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path \
     && chmod -R a+w $RUSTUP_HOME $CARGO_HOME
 
 
 # Copy full repository
 COPY . .
 
+
+############################
 # Install dependencies
+############################
+WORKDIR /repo/apps/api
+
 RUN pnpm install --frozen-lockfile
 
-# Build application
+
+############################
+# Build API
+############################
 RUN pnpm run build
 
-# Remove dev dependencies
 RUN pnpm prune --prod --ignore-scripts
 
 
-# ----------------------------
-# Runtime
-# ----------------------------
-FROM base AS runtime
+############################
+# Runtime image
+############################
+FROM node:22-slim AS runtime
+
+WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
     git \
     procps \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-EXPOSE 8080
 
-# Copy compiled app
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/native ./native
+############################
+# Copy built API
+############################
+COPY --from=build /repo/apps/api/node_modules ./node_modules
+COPY --from=build /repo/apps/api/dist ./dist
+COPY --from=build /repo/apps/api/native ./native
 
-# Create directory before copying Go library
+
+############################
+# Copy Go library
+############################
 RUN mkdir -p ./sharedLibs/go-html-to-md
 
-# Copy Go library
-COPY --from=go-build /app/sharedLibs/go-html-to-md/libhtml-to-markdown.so ./sharedLibs/go-html-to-md/
+COPY --from=go-build /build/go-html-to-md/libhtml-to-markdown.so \
+    ./sharedLibs/go-html-to-md/
+
+
+EXPOSE 8080
 
 CMD ["node", "dist/src/harness.js", "--start-docker"]
