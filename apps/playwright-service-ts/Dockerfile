@@ -24,14 +24,16 @@ FROM node:20-slim
 
 WORKDIR /app
 
-COPY package*.json ./
+# copy package.json from the playwright service folder
+COPY apps/playwright-service-ts/package*.json ./
 
 RUN npm install
 
-# Install Playwright browsers
+# install playwright browsers
 RUN npx playwright install --with-deps chromium
 
-COPY . .
+# copy the rest of the service
+COPY apps/playwright-service-ts .
 
 RUN npm run build
 
