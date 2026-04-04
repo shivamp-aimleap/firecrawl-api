@@ -20,7 +20,7 @@
 
 # CMD [ "npm", "start" ]
 
-FROM mcr.microsoft.com/playwright:v1.43.0-jammy
+FROM mcr.microsoft.com/playwright:v1.58.1-jammy
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ COPY apps/playwright-service-ts/package*.json ./
 
 RUN npm install
 
-# copy service code
+# copy service source
 COPY apps/playwright-service-ts .
 
 RUN npm run build
