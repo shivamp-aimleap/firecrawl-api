@@ -20,20 +20,17 @@
 
 # CMD [ "npm", "start" ]
 
-FROM node:18-slim
+FROM mcr.microsoft.com/playwright:v1.43.0-jammy
 
 WORKDIR /app
 
-# Copy package files from correct directory
+# copy package files
 COPY apps/playwright-service-ts/package*.json ./
 
 RUN npm install
 
-# Copy service source
+# copy service code
 COPY apps/playwright-service-ts .
-
-# Install Playwright browser
-RUN npx playwright install chromium --with-deps
 
 RUN npm run build
 
