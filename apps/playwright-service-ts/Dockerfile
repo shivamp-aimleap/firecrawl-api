@@ -24,36 +24,14 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# install dependencies required by chromium
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    ca-certificates \
-    fonts-liberation \
-    libnss3 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libcups2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpangocairo-1.0-0 \
-    libgtk-3-0 \
-    && rm -rf /var/lib/apt/lists/*
-
-# copy package files
-COPY apps/playwright-service-ts/package*.json ./
+COPY package*.json ./
 
 RUN npm install
 
-# install browsers
-RUN npx playwright install chromium
+# Install Playwright browsers
+RUN npx playwright install --with-deps chromium
 
-# copy source
-COPY apps/playwright-service-ts .
+COPY . .
 
 RUN npm run build
 
